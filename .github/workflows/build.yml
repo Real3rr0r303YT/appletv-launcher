@@ -13,8 +13,12 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-    - name: Build Debug APK with Gradle
-      run: gradle assembleDebug
+    - name: Generate Gradle Wrapper
+      run: gradle wrapper --gradle-version 8.5 || mvn -N io.takari:maven:wrapper -Dversion=8.5 || true
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew || true
+    - name: Build Debug APK
+      run: ./gradlew assembleDebug
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
