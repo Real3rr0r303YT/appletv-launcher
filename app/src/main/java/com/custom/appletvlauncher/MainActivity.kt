@@ -1,96 +1,65 @@
 package com.custom.appletvlauncher
 
 import android.content.Intent
-import android.content.pm.ResolveInfo
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.Crossfade
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.tv.material3.*
-import coil.compose.AsyncImage
+import androidx.activity.viewModels
+import com.custom.appletvlauncher.ui.home.HomeRoute
+import com.custom.appletvlauncher.ui.home.HomeViewModel
+import com.custom.appletvlauncher.ui.theme.TvOsTheme
 
 class MainActivity : ComponentActivity() {
+
+    private val viewModel: HomeViewModel by viewModels()
+    private var stoppedSinceResume = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme(background = Color(0xFF0D0D0F))) {
-                AppleTvDashboard()
+            TvOsTheme {
+                HomeRoute(viewModel)
             }
         }
     }
-}
 
-data class AppModel(val label: String, val packageName: String, val icon: Any?)
-
-@Composable
-fun AppleTvDashboard() {
-    val context = LocalContext.current
-    var installedApps by remember { mutableStateOf<List<AppModel>>(emptyList()) }
-    var focusedApp by remember { mutableStateOf<AppModel?>(null) }
-
-    LaunchedEffect(Unit) {
-        val pm = context.packageManager
-        val mainIntent = Intent(Intent.ACTION_MAIN, null).apply { addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER) }
-        val resolveInfos: List<ResolveInfo> = pm.queryIntentActivities(mainIntent, 0)
-        installedApps = resolveInfos.map { AppModel(it.loadLabel(pm).toString(), it.activityInfo.packageName, it.loadIcon(pm)) }
-        if (installedApps.isNotEmpty()) focusedApp = installedApps.first()
+    override fun onResume() {
+        super.onResume()
+        stoppedSinceResume = false
+        viewModel.onResumed()
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0C))) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Box(modifier = Modifier.fillMaxWidth().weight(0.45f).padding(24.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xFF16161A)), contentAlignment = Alignment.Center) {
-                Crossfade(targetState = focusedApp, label = "TopShelf") { app ->
-                    if (app != null) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            AsyncImage(model = app.icon, contentDescription = app.label, modifier = Modifier.size(100.dp).clip(RoundedCornerShape(16.dp)), contentScale = ContentScale.Fit)
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(text = app.label, fontSize = 24.sp, color = Color.White)
-                        }
-                    }
-                }
-            }
-            Box(modifier = Modifier.fillMaxWidth().weight(0.55f).padding(horizontal = 24.dp)) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(20.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
-                    items(installedApps) { app ->
-                        AppCard(app = app, onFocus = { focusedApp = app }, onClick = {
-                            val launchIntent = context.packageManager.getLaunchIntentForPackage(app.packageName)
-                            launchIntent?.let { context.startActivity(it) }
-                        })
-                    }
-                }
-            }
+    override fun onStop() {
+        super.onStop()
+        stoppedSinceResume = true
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // HOME pressed while the launcher was already on screen (not when returning from another app)
+        if (!stoppedSinceResume && intent.hasCategory(Intent.CATEGORY_HOME)) {
+            viewModel.scrollToTop()
         }
     }
-}
 
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-fun AppCard(app: AppModel, onFocus: () -> Unit, onClick: () -> Unit) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.size(140.dp).shadow(8.dp, RoundedCornerShape(24.dp)).onFocusChanged { if (it.isFocused) onFocus() },
-        shape = CardDefaults.shape(RoundedCornerShape(24.dp)),
-        scale = CardDefaults.scale(focusedScale = 1.12f),
-        colors = CardDefaults.colors(containerColor = Color(0xFF1C1C1E), focusedContainerColor = Color.White)
-    ) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            AsyncImage(model = app.icon, contentDescription = app.label, modifier = Modifier.size(80.dp).clip(RoundedCornerShape(16.dp)))
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val handled = super.dispatchKeyEvent(event)
+        // Safety net against a "stuck" focus: an unhandled D-pad press lets the screen re-focus a tile
+        if (!handled && event.action == KeyEvent.ACTION_DOWN && event.keyCode in NAVIGATION_KEYS) {
+            viewModel.recoverFocus()
         }
+        return handled
+    }
+
+    private companion object {
+        val NAVIGATION_KEYS = setOf(
+            KeyEvent.KEYCODE_DPAD_UP,
+            KeyEvent.KEYCODE_DPAD_DOWN,
+            KeyEvent.KEYCODE_DPAD_LEFT,
+            KeyEvent.KEYCODE_DPAD_RIGHT,
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER,
+        )
     }
 }
