@@ -13,7 +13,13 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
+        cache: gradle
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew || true
     - name: Build Debug APK
-      run: |
-        chmod +x gradlew || true
-        ./gradlew assembleDebug || true
+      run: ./gradlew assembleDebug
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: appletv-launcher-debug
+        path: app/build/outputs/apk/debug/app-debug.apk
