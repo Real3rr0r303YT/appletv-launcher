@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Launcher</string>
+    <string name="recently_used">Zuletzt verwendet</string>
+    <string name="app_category">App</string>
+    <string name="no_apps">Keine Apps gefunden</string>
+    <string name="launch_failed">%1$s konnte nicht gestartet werden</string>
+</resources>
